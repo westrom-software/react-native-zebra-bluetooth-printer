@@ -111,7 +111,7 @@ RCT_EXPORT_METHOD(print:(NSString*)zpl
     } else {
         self.printResolveBlock=resolve;
         self.printRejectBlock=reject;
-        NSString *szpl = [zpl stringByAppendingString:@"\r\n"];
+        /*NSString *szpl = [zpl stringByAppendingString:@"\r\n"];
         const char *bytes = [szpl UTF8String];
         size_t len = [szpl length];
         NSData *payload = [NSData dataWithBytes:bytes length:len];
@@ -125,7 +125,46 @@ RCT_EXPORT_METHOD(print:(NSString*)zpl
                             offset += thisChunkSize;
             [self.printer writeValue:chunk forCharacteristic:self.writeCharacteristic type:CBCharacteristicWriteWithResponse];
         } while (offset < length);
-        printCompleted = YES; 
+        printCompleted = YES; */
+
+         // Dodaj znak końca linii, jeśli jest wymagany
+         NSString *szpl = [zpl stringByAppendingString:@"\r\n"];
+         // Konwertuj NSString do NSData z kodowaniem UTF-8
+         NSData *payload = [szpl dataUsingEncoding:NSUTF8StringEncoding];
+        const uint8_t *bytes = [payload bytes];
+        NSUInteger length = [payload length];
+        // Ustal rozmiar fragmentu
+        NSUInteger chunkSize = 20; // Zmniejsz ten rozmiar, jeśli jest to wymagane przez twoje urządzenie
+        NSUInteger offset = 0;
+        // Podział danych na pakiety i wysyłanie przez Bluetooth
+        while (offset < length) {
+            // Znajdź bezpieczny rozmiar fragmentu, który nie przerywa znaku UTF-8
+            NSUInteger thisChunkSize = MIN(chunkSize, length - offset);
+        
+            // Upewnij się, że fragment nie przerywa znaku UTF-8
+            while (thisChunkSize > 0 && (bytes[offset + thisChunkSize - 1] & 0xC0) == 0x80) {
+                thisChunkSize--;
+            }
+            // Pobieramy fragment danych o rozmiarze thisChunkSize
+            NSData *chunk = [NSData dataWithBytes:bytes + offset length:thisChunkSize];
+            // Zwiększamy offset o długość wysłanego fragmentu
+            offset += thisChunkSize;
+            // Logowanie bajtów fragmentu w formie tablicy
+            NSMutableString *byteArrayString = [NSMutableString stringWithString:@"["];
+            for (NSUInteger i = 0; i < thisChunkSize; i++) {
+                [byteArrayString appendFormat:@"0x%02x", bytes[offset - thisChunkSize + i]];
+                if (i < thisChunkSize - 1) {
+                    [byteArrayString appendString:@", "];
+                }
+            }
+            [byteArrayString appendString:@"]"];
+            NSLog(@"Chunk data: %@", byteArrayString);
+             // Wysyłanie fragmentu danych przez Bluetooth
+            [self.printer writeValue:chunk forCharacteristic:self.writeCharacteristic type:CBCharacteristicWriteWithResponse];
+        }
+        // Oznaczenie zakończenia wydruku
+        printCompleted = YES;
+
     }
 }
 
